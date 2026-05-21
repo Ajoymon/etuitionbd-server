@@ -30,6 +30,33 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
     const db = client.db("etuitiondb_db")
+    const TuitionPostCollection = db.collection('tuitionPosts')
+    const userCollection = db.collection('users')
+
+    // user post api
+    app.post('/users', async (req, res) => {
+      const user = req.body
+      user.createdAt = new Date();
+      const email = user.email;
+      const userExisterts = await userCollection.findOne({ email })
+      if (userExisterts) {
+        return res.send({ message: 'user exists' })
+      }
+      const rusult = await userCollection.insertOne(user)
+      res.send(rusult)
+    })
+
+
+    // Tuition post API
+    app.get('/tuitionPosts', async (req, res) => {
+
+    })
+    app.post('/tuitionPosts', async (req, res) => {
+      const tuition = req.body
+      const rusult = await TuitionPostCollection.insertOne(tuition)
+      res.send(rusult)
+      console.log(rusult)
+    })
 
 
 
