@@ -6,7 +6,7 @@ const app = express()
 require('dotenv').config()
 const port = process.env.PORT || 3000
 // mongodb import
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 
 
@@ -49,8 +49,27 @@ async function run() {
 
     // Tuition post API
     app.get('/tuitionPosts', async (req, res) => {
+      const query = {}
+      const { email, status } = req.query
+      if (email) {
+        query.email = email
+      }
+      if (status) {
+        query.status = status
+      }
+      const options = { sort: { createdAt: -1 } }
 
+      const cursor = TuitionPostCollection.find(query, options)
+      const rusult = await cursor.toArray();
+      res.send(rusult)
     })
+    app.delete('/tuitionPosts/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) }
+      const rusult = await TuitionPostCollection.deleteOne(query)
+      res.send(rusult)
+    })
+
     app.post('/tuitionPosts', async (req, res) => {
       const tuition = req.body
       const rusult = await TuitionPostCollection.insertOne(tuition)
