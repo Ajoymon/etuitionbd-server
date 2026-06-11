@@ -14,6 +14,12 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 app.use(express.json())
 app.use(cors())
 
+// const vrifyFBToken = (req, res, next) => {
+
+//   next()
+// }
+
+
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@my-first-cluster.ofk8daf.mongodb.net/?appName=my-First-Cluster`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -34,9 +40,18 @@ async function run() {
     const userCollection = db.collection('users')
 
     // user post api
+    app.get('/users/:email/role', async (req, res) => {
+      const email = req.params.email
+      const query = { email }
+      console.log(query)
+      const user = await userCollection.findOne(query)
+      res.send({ role: user?.role || 'user' })
+    })
+
     app.post('/users', async (req, res) => {
       const user = req.body
       user.createdAt = new Date();
+
       const email = user.email;
       const userExisterts = await userCollection.findOne({ email })
       if (userExisterts) {
