@@ -1,28 +1,52 @@
-const express = require('express')
-// middleware bannowr jnow
-const cors = require('cors')
-const app = express()
-// .env file
-require('dotenv').config()
-const port = process.env.PORT || 3000
-// mongodb import
+const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
+
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
-
+const app = express();
+const port = process.env.PORT || 3000;
 
 // middleware
-app.use(express.json())
-app.use(cors())
+app.use(cors());
+app.use(express.json());
 
-// const vrifyFBToken = (req, res, next) => {
+const admin = require("firebase-admin");
+const { getAuth } = require("firebase-admin/auth");
+console.log('admin:', admin);
+console.log('admin.credential:', admin.credential);
 
-//   next()
-// }
+const serviceAccount = require("./etuitiondb-firebase-adminsdk-fbsvc-0bf105b9e1.json");
+
+admin.initializeApp({
+  credential: admin.cert(serviceAccount)
+});
 
 
+const verifyFBToken = async (req, res, next) => {
+
+  const token = req.headers.authorization
+  if (!token) {
+    return res.status(401).send({ message: 'unauthorized access' })
+  }
+  try {
+    const IdToken = token.split(' ')[1]
+    const decoded = await getAuth().verifyIdToken(IdToken);
+    console.log(decoded)
+    res.decoded_email = decoded.email
+
+    next();
+
+  } catch (error) {
+    return res.status(401).send({ message: 'unauthorized access' })
+  }
+
+}
+
+// MongoDB URI
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@my-first-cluster.ofk8daf.mongodb.net/?appName=my-First-Cluster`;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+// Mongo client
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -31,83 +55,144 @@ const client = new MongoClient(uri, {
   }
 });
 
+// ================= ROOT ROUTE =================
+app.get('/', (req, res) => {
+  res.send('Hello World!');
+});
+
+// ================= MAIN FUNCTION =================
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-    const db = client.db("etuitiondb_db")
-    const TuitionPostCollection = db.collection('tuitionPosts')
-    const userCollection = db.collection('users')
+    console.log('MongoDB connected successfully ✅');
 
-    // user post api
-    app.get('/users/:email/role', async (req, res) => {
-      const email = req.params.email
-      const query = { email }
-      console.log(query)
-      const user = await userCollection.findOne(query)
-      res.send({ role: user?.role || 'user' })
-    })
+    const db = client.db('etuitiondb_db');
+    const userCollection = db.collection('users');
+    const TuitionPostCollection = db.collection('tuitionPosts');
+
+    // ================= USER ROUTES =================
 
     app.post('/users', async (req, res) => {
-      const user = req.body
-      user.createdAt = new Date();
+      try {
+        const user = req.body;
+        user.createdAt = new Date();
 
-      const email = user.email;
-      const userExisterts = await userCollection.findOne({ email })
-      if (userExisterts) {
-        return res.send({ message: 'user exists' })
+        const existUser = await userCollection.findOne({ email: user.email });
+
+        if (existUser) {
+          return res.send({ message: 'user exists' });
+        }
+
+        const result = await userCollection.insertOne(user);
+        res.send(result);
+
+      } catch (error) {
+        console.log(error);
+        res.status(500).send({ error: 'User insert failed' });
       }
-      const rusult = await userCollection.insertOne(user)
-      res.send(rusult)
-    })
+    });
 
+    app.get('/users/:email/role', async (req, res) => {
+      try {
+        const email = req.params.email;
+        const user = await userCollection.findOne({ email });
 
-    // Tuition post API
+        res.send({ role: user?.role || 'user' });
+
+      } catch (error) {
+        res.status(500).send({ error: 'Role fetch failed' });
+      }
+    });
+
+    // ================= TUITION ROUTES =================
     app.get('/tuitionPosts', async (req, res) => {
-      const query = {}
-      const { email, status } = req.query
-      if (email) {
-        query.email = email
-      }
-      if (status) {
-        query.status = status
-      }
-      const options = { sort: { createdAt: -1 } }
+      const query = { status: 'Approved' }
+      const rusult = await TuitionPostCollection.find(query).toArray();
+      res.send(rusult)
 
-      const cursor = TuitionPostCollection.find(query, options)
-      const rusult = await cursor.toArray();
-      res.send(rusult)
     })
-    app.delete('/tuitionPosts/:id', async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) }
-      const rusult = await TuitionPostCollection.deleteOne(query)
-      res.send(rusult)
-    })
+
+    app.get('/tuitionPosts', verifyFBToken, async (req, res) => {
+      try {
+        const { email, status } = req.query;
+        let query = {};
+
+
+        if (email) query.email = email;
+        if (status) query.status = status;
+
+        const result = await TuitionPostCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send(result);
+
+      } catch (error) {
+        res.status(500).send({ error: 'Fetch failed' });
+      }
+    });
 
     app.post('/tuitionPosts', async (req, res) => {
-      const tuition = req.body
-      const rusult = await TuitionPostCollection.insertOne(tuition)
-      res.send(rusult)
-      console.log(rusult)
-    })
+      try {
+        const tuition = req.body;
+        const result = await TuitionPostCollection.insertOne(tuition);
 
+        res.send(result);
 
+      } catch (error) {
+        res.status(500).send({ error: 'Insert failed' });
+      }
+    });
+    app.patch('/tuitionPosts/:id/status', verifyFBToken, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { status } = req.body;
 
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+        const result = await TuitionPostCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { status } }
+        );
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: 'Status update failed' });
+      }
+    });
+
+    app.delete('/tuitionPosts/:id', async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const result = await TuitionPostCollection.deleteOne({
+          _id: new ObjectId(id)
+        });
+
+        res.send(result);
+
+      } catch (error) {
+        res.status(500).send({ error: 'Delete failed' });
+      }
+    });
+    app.get('/tuitionPosts/:id', async (req, res) => {
+      const { id } = req.params;
+      const query = { _id: new ObjectId(id) };
+      const result = await TuitionPostCollection.findOne(query);
+      res.send(result);
+    });
+
+    // ================= PING =================
+    await client.db('admin').command({ ping: 1 });
+    console.log('MongoDB ping successful 🚀');
+
+  } catch (error) {
+    console.log('MongoDB connection error:', error);
   }
 }
+
 run().catch(console.dir);
 
-app.get('/', (req, res) => {
-  res.send('Hello World!')
-})
-
+// ================= SERVER START =================
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`)
-})
+  console.log(`Server running on port ${port} 🚀`);
+});
