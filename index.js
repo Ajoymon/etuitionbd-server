@@ -33,7 +33,7 @@ const verifyFBToken = async (req, res, next) => {
     const IdToken = token.split(' ')[1]
     const decoded = await getAuth().verifyIdToken(IdToken);
     console.log(decoded)
-    res.decoded_email = decoded.email
+    req.decoded_email = decoded.email
 
     next();
 
@@ -69,6 +69,7 @@ async function run() {
     const db = client.db('etuitiondb_db');
     const userCollection = db.collection('users');
     const TuitionPostCollection = db.collection('tuitionPosts');
+    const tutorApplications = db.collection('tutorApplications')
 
     // ================= USER ROUTES =================
 
@@ -91,6 +92,10 @@ async function run() {
         res.status(500).send({ error: 'User insert failed' });
       }
     });
+    app.get('/users', async (req, res) => {
+      const rusult = await userCollection.find({ role: 'Tutor' }).toArray()
+      res.send(rusult)
+    })
 
     app.get('/users/:email/role', async (req, res) => {
       try {
@@ -105,34 +110,7 @@ async function run() {
     });
 
     // ================= TUITION ROUTES =================
-    app.get('/tuitionPosts', async (req, res) => {
-      const query = { status: 'Approved' }
-      const rusult = await TuitionPostCollection.find(query).toArray();
-      res.send(rusult)
-
-    })
-
-    app.get('/tuitionPosts', verifyFBToken, async (req, res) => {
-      try {
-        const { email, status } = req.query;
-        let query = {};
-
-
-        if (email) query.email = email;
-        if (status) query.status = status;
-
-        const result = await TuitionPostCollection
-          .find(query)
-          .sort({ createdAt: -1 })
-          .toArray();
-
-        res.send(result);
-
-      } catch (error) {
-        res.status(500).send({ error: 'Fetch failed' });
-      }
-    });
-
+    // My data is being posted.
     app.post('/tuitionPosts', async (req, res) => {
       try {
         const tuition = req.body;
@@ -144,6 +122,55 @@ async function run() {
         res.status(500).send({ error: 'Insert failed' });
       }
     });
+
+    // Private - dashboard (নিজের data)
+    app.get('/myTuitions', verifyFBToken, async (req, res) => {
+      try {
+        const email = req.query.email;
+
+        if (email !== req.decoded_email) {
+          return res.status(403).send({ message: 'forbidden access' });
+        }
+
+        const result = await TuitionPostCollection
+          .find({ email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: 'Fetch failed' });
+      }
+    });
+    // Can I delete my data?
+    app.delete('/tuitionPosts/:id', async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const result = await TuitionPostCollection.deleteOne({
+          _id: new ObjectId(id)
+        });
+
+        res.send(result);
+
+      } catch (error) {
+        res.status(500).send({ error: 'Delete failed' });
+      }
+    });
+    // Admin - সব data (Pending + Approved + Rejected)
+    app.get('/admin/tuitionPosts', async (req, res) => {
+      try {
+        const result = await TuitionPostCollection
+          .find()
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: 'Fetch failed' });
+      }
+    });
+
+    // Amr data Admin Approved + Rejected updat korba tar API
     app.patch('/tuitionPosts/:id/status', verifyFBToken, async (req, res) => {
       try {
         const id = req.params.id;
@@ -159,27 +186,71 @@ async function run() {
         res.status(500).send({ error: 'Status update failed' });
       }
     });
+    // amr Approved pajr API
+    app.get('/Tution/tuitionPosts', async (req, res) => {
+      const rusult = await TuitionPostCollection.find({
+        status: 'Approved'
+      }).sort({ createdAt: -1 }).toArray()
+      res.send(rusult)
+    })
 
-    app.delete('/tuitionPosts/:id', async (req, res) => {
-      try {
-        const id = req.params.id;
-
-        const result = await TuitionPostCollection.deleteOne({
-          _id: new ObjectId(id)
-        });
-
-        res.send(result);
-
-      } catch (error) {
-        res.status(500).send({ error: 'Delete failed' });
-      }
-    });
+    // Amr view Detils paj API
     app.get('/tuitionPosts/:id', async (req, res) => {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
       const result = await TuitionPostCollection.findOne(query);
       res.send(result);
     });
+    // ================Tutor Routh==============
+    app.post('/tutorApplications', async (req, res) => {
+      const tutor = req.body;
+      // check যদি আগে apply করা থাকে
+      const existing = await tutorApplications.findOne({
+        tuitionId: tutor.tuitionId,
+        tutorEmail: tutor.tutorEmail,
+      });
+
+      if (existing) {
+        return res.status(400).send({ message: 'Already applied to this tuition' });
+      }
+      const rusult = await tutorApplications.insertOne(tutor)
+      res.send(rusult)
+    })
+    // Check if tutor already applied
+    app.get('/tutorApplications/check', async (req, res) => {
+      const { tuitionId, tutorEmail } = req.query;
+      const query = { tuitionId, tutorEmail };
+      const existing = await tutorApplications.findOne(query);
+      res.send({ applied: existing ? true : false });
+    });
+    //  Studend paj data show
+    app.get('/tutorApplications/Student', verifyFBToken, async (req, res) => {
+      const email = req.query.email;
+      const query = {}
+      if (email) {
+        query.studentEmail = email
+        if (email !== req.decoded_email) {
+          return res.status(403).send({ message: 'forbidden' })
+        }
+      }
+      const rusult = await tutorApplications.find(query).sort({ paidAt: -1 }).toArray()
+      res.send(rusult)
+
+    })
+    // Student Apply Tution Updat
+    app.patch('/update/Apply/:id', verifyFBToken, async (req, res) => {
+      const status = req.body.status;
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) }
+      const updateDoc = {
+        $set: {
+          status: status
+        }
+      }
+      const rusult = await tutorApplications.updateOne(query, updateDoc)
+      res.send(rusult)
+    })
+
 
     // ================= PING =================
     await client.db('admin').command({ ping: 1 });
