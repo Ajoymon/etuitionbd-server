@@ -3,9 +3,13 @@ const cors = require('cors');
 require('dotenv').config();
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+// Strip Ke
+const stripe = require("stripe")(process.env.STRIPE_SECRET);
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+
 
 // middleware
 app.use(cors());
@@ -69,7 +73,8 @@ async function run() {
     const db = client.db('etuitiondb_db');
     const userCollection = db.collection('users');
     const TuitionPostCollection = db.collection('tuitionPosts');
-    const tutorApplications = db.collection('tutorApplications')
+    const tutorApplications = db.collection('tutorApplications');
+    const paymentsCollection = db.collection('payments');
 
     // ================= USER ROUTES =================
 
@@ -237,6 +242,19 @@ async function run() {
       res.send(rusult)
 
     })
+    // Tutor paj data show
+    app.get('/tutorApplications/Tutor', verifyFBToken, async (req, res) => {
+      const email = req.query.email;
+      const query = {}
+      if (email) {
+        query.tutorEmail = email
+        if (email !== req.decoded_email) {
+          return res.status(403).send({ message: 'forbidden' })
+        }
+      }
+      const rusult = await tutorApplications.find(query).sort({ paidAt: -1 }).toArray()
+      res.send(rusult)
+    })
     // Student Apply Tution Updat
     app.patch('/update/Apply/:id', verifyFBToken, async (req, res) => {
       const status = req.body.status;
@@ -250,6 +268,104 @@ async function run() {
       const rusult = await tutorApplications.updateOne(query, updateDoc)
       res.send(rusult)
     })
+    // Tutor Delete API
+    app.delete('/tutorApplications/:id', verifyFBToken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const rusult = await tutorApplications.deleteOne(query)
+      res.send(rusult)
+    })
+    // ================pamant Reletat API=================
+    app.post('/create-checkout-session', async (req, res) => {
+      const paymentinfo = req.body
+      console.log(paymentinfo)
+      const amount = parseInt(paymentinfo.amount) * 100;
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              unit_amount: amount,
+              product_data: {
+                name: `Tutor payment - ${paymentinfo.tutorName}`
+              }
+            },
+            quantity: 1,
+          }
+        ],
+        mode: 'payment',
+        metadata: {
+          applicationId: paymentinfo.applicationId,
+          tutorName: paymentinfo.tutorName
+        },
+        customer_email: paymentinfo.studentEmail,
+        success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}&applicationId=${paymentinfo.applicationId}`,
+        cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`
+      })
+      res.send({ url: session.url })
+    })
+
+    app.get('/payment-success', async (req, res) => {
+      try {
+        const sessionId = req.query.session_id;
+        const applicationId = req.query.applicationId;
+
+
+
+
+        // Stripe থেকে session data আনুন
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        const transactionId = session.payment_intent;
+
+        // Already paid check করুন
+        const alreadyPaid = await paymentsCollection.findOne({ transactionId });
+        if (alreadyPaid) {
+          return res.send({ message: 'already exists', transactionId });
+        }
+
+        if (session.payment_status === 'paid') {
+          // Application data আনুন
+          const app = await tutorApplications.findOne({
+            _id: new ObjectId(applicationId),
+          });
+
+          // Application Approved করুন
+          await tutorApplications.updateOne(
+            { _id: new ObjectId(applicationId) },
+            { $set: { status: 'Approved' } }
+          );
+
+          // Payment save করুন
+          const payment = {
+
+            transactionId,
+            sessionId,
+            studentEmail: session.customer_email,
+            tutorEmail: app?.tutorEmail,
+            tutorName: app?.tutorName,
+            tuitionId: app?.tuitionId,
+            tuitionSubject: app?.subjects,
+            applicationId,
+            amount: session.amount_total / 100,
+            currency: session.currency,
+            paymentStatus: 'paid',
+            paymentDate: new Date().toISOString().split('T')[0],
+            stripePaymentIntentId: transactionId,
+            paidAt: new Date(),
+          };
+
+          const result = await paymentsCollection.insertOne(payment);
+
+          return res.send({ success: true, payment: result });
+        }
+
+        return res.send({ success: false });
+
+      } catch (error) {
+        console.log(error);
+        res.status(500).send({ error: 'Payment success failed' });
+      }
+    });
 
 
     // ================= PING =================
