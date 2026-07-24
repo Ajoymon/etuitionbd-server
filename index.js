@@ -296,7 +296,8 @@ async function run() {
         mode: 'payment',
         metadata: {
           applicationId: paymentinfo.applicationId,
-          tutorName: paymentinfo.tutorName
+          tutorName: paymentinfo.tutorName,
+          studentName: paymentinfo.studentName
         },
         customer_email: paymentinfo.studentEmail,
         success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}&applicationId=${paymentinfo.applicationId}`,
@@ -308,6 +309,7 @@ async function run() {
     app.get('/payment-success', async (req, res) => {
       try {
         const sessionId = req.query.session_id;
+
         const applicationId = req.query.applicationId;
 
 
@@ -341,6 +343,7 @@ async function run() {
             transactionId,
             sessionId,
             studentEmail: session.customer_email,
+            studentName: session.metadata.studentName,
             tutorEmail: app?.tutorEmail,
             tutorName: app?.tutorName,
             tuitionId: app?.tuitionId,
@@ -366,6 +369,27 @@ async function run() {
         res.status(500).send({ error: 'Payment success failed' });
       }
     });
+
+    // Student Payment History
+    app.get('/student-payments', async (req, res) => {
+      const email = req.query.email;
+      const rusult = await paymentsCollection.find({
+        studentEmail: email,
+        paymentStatus: 'paid'
+      }).sort({ paidAt: -1 }).toArray();
+      res.send(rusult);
+
+    })
+    // Tutor Payment History
+    app.get('/tutor-payments', async (req, res) => {
+      const email = req.query.email;
+      const rusult = await paymentsCollection.find({
+        tutorEmail: email,
+        paymentStatus: 'paid'
+
+      }).sort({ paidAt: -1 }).toArray();
+      res.send(rusult)
+    })
 
 
     // ================= PING =================
