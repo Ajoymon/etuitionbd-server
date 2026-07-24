@@ -390,6 +390,18 @@ async function run() {
       }).sort({ paidAt: -1 }).toArray();
       res.send(rusult)
     })
+    // Admin - সব payment
+    app.get('/payments/admin', verifyFBToken, async (req, res) => {
+      try {
+        const result = await paymentsCollection
+          .find()
+          .sort({ paidAt: -1 })
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: 'Fetch failed' });
+      }
+    });
 
 
     // ================= PING =================
