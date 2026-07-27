@@ -255,15 +255,6 @@ async function run() {
       }).sort({ createdAt: -1 }).toArray()
       res.send(rusult)
     })
-
-    // Amr view Detils paj API
-    app.get('/tuitionPosts/:id', async (req, res) => {
-      const { id } = req.params;
-      const query = { _id: new ObjectId(id) };
-      const result = await TuitionPostCollection.findOne(query);
-      res.send(result);
-    });
-    // ==========
     // Latest 6 tuitions (Approved)
     app.get('/tuitionPosts/latest', async (req, res) => {
       try {
@@ -277,6 +268,16 @@ async function run() {
         res.status(500).send({ error: 'Fetch failed' });
       }
     });
+
+    // Amr view Detils paj API
+    app.get('/tuitionPosts/:id', async (req, res) => {
+      const { id } = req.params;
+      const query = { _id: new ObjectId(id) };
+      const result = await TuitionPostCollection.findOne(query);
+      res.send(result);
+    });
+    // ==========
+
     // ================Tutor Routh==============
     app.post('/tutorApplications', async (req, res) => {
       const tutor = req.body;
