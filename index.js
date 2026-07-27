@@ -113,6 +113,63 @@ async function run() {
         res.status(500).send({ error: 'Role fetch failed' });
       }
     });
+    // Uaer Management
+    app.get('/users/admin', verifyFBToken, async (req, res) => {
+      const result = await userCollection.find().sort({ createdAt: -1 }).toArray();
+      res.send(result);
+    })
+    // Role update
+    app.patch('/users/:id/role', verifyFBToken, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { role } = req.body;
+        const result = await userCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { role } }
+        );
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: 'Role update failed' });
+      }
+    });
+    // User delete
+    app.delete('/users/:id', verifyFBToken, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const result = await userCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: 'Delete failed' });
+      }
+    });
+    // tutor paj data
+    app.get('/users/tutors', async (req, res) => {
+      try {
+        const result = await userCollection
+          .find({ role: 'tutor' })
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: 'Fetch failed' });
+      }
+    });
+    // ==========
+    // Latest 6 tutors
+    app.get('/users/tutors/latest', async (req, res) => {
+      try {
+        const result = await userCollection
+          .find({ role: 'Tutor' })
+          .sort({ createdAt: -1 })
+          .limit(6)
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: 'Fetch failed' });
+      }
+    });
 
     // ================= TUITION ROUTES =================
     // My data is being posted.
@@ -205,6 +262,20 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const result = await TuitionPostCollection.findOne(query);
       res.send(result);
+    });
+    // ==========
+    // Latest 6 tuitions (Approved)
+    app.get('/tuitionPosts/latest', async (req, res) => {
+      try {
+        const result = await TuitionPostCollection
+          .find({ status: 'Approved' })
+          .sort({ createdAt: -1 })
+          .limit(6)
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: 'Fetch failed' });
+      }
     });
     // ================Tutor Routh==============
     app.post('/tutorApplications', async (req, res) => {
