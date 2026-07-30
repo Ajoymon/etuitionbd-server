@@ -101,6 +101,19 @@ async function run() {
       const rusult = await userCollection.find({ role: 'Tutor' }).toArray()
       res.send(rusult)
     })
+    // Latest 6 tutors
+    app.get('/users/tutors/latest', async (req, res) => {
+      try {
+        const result = await userCollection
+          .find({ role: 'tutor' })
+          .sort({ createdAt: -1 })
+          .limit(6)
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: 'Fetch failed' });
+      }
+    });
 
     app.get('/users/:email/role', async (req, res) => {
       try {
@@ -111,6 +124,20 @@ async function run() {
 
       } catch (error) {
         res.status(500).send({ error: 'Role fetch failed' });
+      }
+    });
+    app.patch('/users/update/:email', verifyFBToken, async (req, res) => {
+      try {
+        const email = req.params.email;
+        const { name, phone, photoURL } = req.body;
+
+        const result = await userCollection.updateOne(
+          { email },
+          { $set: { name, phone, photoURL } }
+        );
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: 'Update failed' });
       }
     });
     // Uaer Management
@@ -157,19 +184,8 @@ async function run() {
       }
     });
     // ==========
-    // Latest 6 tutors
-    app.get('/users/tutors/latest', async (req, res) => {
-      try {
-        const result = await userCollection
-          .find({ role: 'Tutor' })
-          .sort({ createdAt: -1 })
-          .limit(6)
-          .toArray();
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ error: 'Fetch failed' });
-      }
-    });
+
+
 
     // ================= TUITION ROUTES =================
     // My data is being posted.
@@ -314,6 +330,24 @@ async function run() {
       res.send(rusult)
 
     })
+    app.get('/tutorApplications/ongoing', verifyFBToken, async (req, res) => {
+      try {
+        const email = req.query.email;
+
+        if (email !== req.decoded_email) {
+          return res.status(403).send({ message: 'forbidden' });
+        }
+
+        const result = await tutorApplications
+          .find({ tutorEmail: email, status: 'Approved' })
+          .sort({ appliedAt: -1 })
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: 'Fetch failed' });
+      }
+    });
     // Tutor paj data show
     app.get('/tutorApplications/Tutor', verifyFBToken, async (req, res) => {
       const email = req.query.email;
