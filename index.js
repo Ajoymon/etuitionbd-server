@@ -17,8 +17,7 @@ app.use(express.json());
 
 const admin = require("firebase-admin");
 const { getAuth } = require("firebase-admin/auth");
-console.log('admin:', admin);
-console.log('admin.credential:', admin.credential);
+
 
 const serviceAccount = require("./etuitiondb-firebase-adminsdk-fbsvc-0bf105b9e1.json");
 
@@ -76,6 +75,22 @@ async function run() {
     const tutorApplications = db.collection('tutorApplications');
     const paymentsCollection = db.collection('payments');
 
+    // verifyAdmin middleware
+    const verifyAdmin = async (req, res, next) => {
+      try {
+        const email = req.decoded_email;
+        const user = await userCollection.findOne({ email });
+
+        if (!user || user.role !== 'admin') {
+          return res.status(403).send({ message: 'forbidden access' });
+        }
+
+        next();
+      } catch (error) {
+        res.status(500).send({ error: 'Admin verify failed' });
+      }
+    };
+
     // ================= USER ROUTES =================
 
     app.post('/users', async (req, res) => {
@@ -97,7 +112,7 @@ async function run() {
         res.status(500).send({ error: 'User insert failed' });
       }
     });
-    app.get('/users', async (req, res) => {
+    app.get('/users', verifyFBToken, verifyAdmin, async (req, res) => {
       const rusult = await userCollection.find({ role: 'Tutor' }).toArray()
       res.send(rusult)
     })
@@ -141,12 +156,12 @@ async function run() {
       }
     });
     // Uaer Management
-    app.get('/users/admin', verifyFBToken, async (req, res) => {
+    app.get('/users/admin', verifyFBToken, verifyAdmin, async (req, res) => {
       const result = await userCollection.find().sort({ createdAt: -1 }).toArray();
       res.send(result);
     })
     // Role update
-    app.patch('/users/:id/role', verifyFBToken, async (req, res) => {
+    app.patch('/users/:id/role', verifyFBToken, verifyAdmin, async (req, res) => {
       try {
         const { id } = req.params;
         const { role } = req.body;
@@ -160,7 +175,7 @@ async function run() {
       }
     });
     // User delete
-    app.delete('/users/:id', verifyFBToken, async (req, res) => {
+    app.delete('/users/:id', verifyFBToken, verifyAdmin, async (req, res) => {
       try {
         const { id } = req.params;
         const result = await userCollection.deleteOne({
@@ -221,7 +236,7 @@ async function run() {
       }
     });
     // Can I delete my data?
-    app.delete('/tuitionPosts/:id', async (req, res) => {
+    app.delete('/tuitionPosts/:id', verifyFBToken, async (req, res) => {
       try {
         const id = req.params.id;
 
@@ -236,7 +251,7 @@ async function run() {
       }
     });
     // Admin - সব data (Pending + Approved + Rejected)
-    app.get('/admin/tuitionPosts', async (req, res) => {
+    app.get('/admin/tuitionPosts', verifyFBToken, verifyAdmin, async (req, res) => {
       try {
         const result = await TuitionPostCollection
           .find()
@@ -249,7 +264,7 @@ async function run() {
     });
 
     // Amr data Admin Approved + Rejected updat korba tar API
-    app.patch('/tuitionPosts/:id/status', verifyFBToken, async (req, res) => {
+    app.patch('/tuitionPosts/:id/status', verifyFBToken, verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
         const { status } = req.body;
@@ -295,7 +310,7 @@ async function run() {
     // ==========
 
     // ================Tutor Routh==============
-    app.post('/tutorApplications', async (req, res) => {
+    app.post('/tutorApplications', verifyFBToken, async (req, res) => {
       const tutor = req.body;
       // check যদি আগে apply করা থাকে
       const existing = await tutorApplications.findOne({
@@ -382,7 +397,7 @@ async function run() {
       res.send(rusult)
     })
     // ================pamant Reletat API=================
-    app.post('/create-checkout-session', async (req, res) => {
+    app.post('/create-checkout-session', verifyFBToken, async (req, res) => {
       const paymentinfo = req.body
       console.log(paymentinfo)
       const amount = parseInt(paymentinfo.amount) * 100;
@@ -477,7 +492,7 @@ async function run() {
     });
 
     // Student Payment History
-    app.get('/student-payments', async (req, res) => {
+    app.get('/student-payments', verifyFBToken, async (req, res) => {
       const email = req.query.email;
       const rusult = await paymentsCollection.find({
         studentEmail: email,
@@ -487,7 +502,7 @@ async function run() {
 
     })
     // Tutor Payment History
-    app.get('/tutor-payments', async (req, res) => {
+    app.get('/tutor-payments', verifyFBToken, async (req, res) => {
       const email = req.query.email;
       const rusult = await paymentsCollection.find({
         tutorEmail: email,
@@ -497,7 +512,7 @@ async function run() {
       res.send(rusult)
     })
     // Admin - সব payment
-    app.get('/payments/admin', verifyFBToken, async (req, res) => {
+    app.get('/payments/admin', verifyFBToken, verifyAdmin, async (req, res) => {
       try {
         const result = await paymentsCollection
           .find()
