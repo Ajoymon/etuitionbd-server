@@ -1,12 +1,10 @@
----
-
 ## 🚀 Local Setup
 
 ### Frontend
 
 ```bash
 # Clone
-git clone https://github.com/your-username/etuitionbd-client.git
+git clone https://github.com/Ajoymon/etuitionbd-server.git
 cd etuitionbd-client
 
 # Install
