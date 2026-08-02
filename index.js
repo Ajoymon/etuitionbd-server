@@ -1,16 +1,13 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-// Strip Ke
-const stripe = require("stripe")(process.env.STRIPE_SECRET);
-
 const app = express();
 const port = process.env.PORT || 3000;
 
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
-
+// Strip Ke
+const stripe = require("stripe")(process.env.STRIPE_SECRET);
 // middleware
 app.use(cors());
 app.use(express.json());
@@ -19,10 +16,13 @@ const admin = require("firebase-admin");
 const { getAuth } = require("firebase-admin/auth");
 
 
-const serviceAccount = require("./etuitiondb-firebase-adminsdk-fbsvc-0bf105b9e1.json");
+
+
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
+const serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
-  credential: admin.cert(serviceAccount)
+  credential: admin.credential.cert(serviceAccount)
 });
 
 
@@ -526,8 +526,8 @@ async function run() {
 
 
     // ================= PING =================
-    await client.db('admin').command({ ping: 1 });
-    console.log('MongoDB ping successful 🚀');
+    // await client.db('admin').command({ ping: 1 });
+    // console.log('MongoDB ping successful 🚀');
 
   } catch (error) {
     console.log('MongoDB connection error:', error);
