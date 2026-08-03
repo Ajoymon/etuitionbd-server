@@ -13,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 const admin = require("firebase-admin");
-const { getAuth } = require("firebase-admin/auth");
+
 
 
 
@@ -26,25 +26,57 @@ admin.initializeApp({
 });
 
 
-const verifyFBToken = async (req, res, next) => {
+// const verifyFBToken = async (req, res, next) => {
 
-  const token = req.headers.authorization
+//   const token = req.headers.authorization
+//   if (!token) {
+//     return res.status(401).send({ message: 'unauthorized access' })
+//   }
+//   try {
+//     const IdToken = token.split(' ')[1]
+//     const decoded = await admin.auth().verifyIdToken(IdToken);
+//     console.log('✅ Token decoded email:', decoded.email);
+//     console.log(decoded)
+//     req.decoded_email = decoded.email
+
+//     next();
+
+//   } catch (error) {
+//     return res.status(401).send({ message: 'unauthorized access' })
+//   }
+
+// }
+const verifyFBToken = async (req, res, next) => {
+  const token = req.headers.authorization;
+
+  console.log('Authorization Header:', token);
+
   if (!token) {
-    return res.status(401).send({ message: 'unauthorized access' })
+    return res.status(401).send({
+      message: 'No authorization token found',
+    });
   }
+
   try {
-    const IdToken = token.split(' ')[1]
-    const decoded = await getAuth().verifyIdToken(IdToken);
-    console.log(decoded)
-    req.decoded_email = decoded.email
+    const IdToken = token.split(' ')[1];
+
+    console.log('Firebase ID Token:', IdToken);
+
+    const decoded = await admin.auth().verifyIdToken(IdToken);
+
+    console.log('Token decoded email:', decoded.email);
+
+    req.decoded_email = decoded.email;
 
     next();
-
   } catch (error) {
-    return res.status(401).send({ message: 'unauthorized access' })
-  }
+    console.log('Token Verify Error:', error);
 
-}
+    return res.status(401).send({
+      message: 'Invalid Firebase token',
+    });
+  }
+};
 
 // MongoDB URI
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@my-first-cluster.ofk8daf.mongodb.net/?appName=my-First-Cluster`;
@@ -58,16 +90,13 @@ const client = new MongoClient(uri, {
   }
 });
 
-// ================= ROOT ROUTE =================
-app.get('/', (req, res) => {
-  res.send('Hello World!');
-});
+
 
 // ================= MAIN FUNCTION =================
 async function run() {
   try {
-    await client.connect();
-    console.log('MongoDB connected successfully ✅');
+    // Connect the client to the server	(optional starting in v4.7)
+    // await client.connect();
 
     const db = client.db('etuitiondb_db');
     const userCollection = db.collection('users');
@@ -93,7 +122,7 @@ async function run() {
 
     // ================= USER ROUTES =================
 
-    app.post('/users', async (req, res) => {
+    app.post('/users', verifyFBToken, async (req, res) => {
       try {
         const user = req.body;
         user.createdAt = new Date();
@@ -529,12 +558,17 @@ async function run() {
     // await client.db('admin').command({ ping: 1 });
     // console.log('MongoDB ping successful 🚀');
 
-  } catch (error) {
-    console.log('MongoDB connection error:', error);
+  } finally {
+    // Ensures that the client will close when you finish/error
+    // await client.close();
   }
 }
 
 run().catch(console.dir);
+// ================= ROOT ROUTE =================
+app.get('/', (req, res) => {
+  res.send('Hello World!');
+});
 
 // ================= SERVER START =================
 app.listen(port, () => {

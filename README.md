@@ -29,7 +29,7 @@ npm run dev
 
 ```bash
 # Clone
-git clone https://github.com/your-username/etuitionbd-server.git
+git clone https://github.com/Ajoymon/etuitionbd-server.git
 cd etuitionbd-server
 
 # Install
@@ -124,5 +124,3 @@ nodemon index.js
 - [Vercel](https://vercel.com/)
 
 ### Backend
-
-├── index.js ├── .env └── package.json
