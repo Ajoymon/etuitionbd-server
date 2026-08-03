@@ -1,2 +1,4 @@
 .env
 node_modules
+.vercel
+etuitiondb-firebase-adminsdk-fbsvc-0bf105b9e1.json
