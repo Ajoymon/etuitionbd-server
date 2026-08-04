@@ -26,57 +26,27 @@ admin.initializeApp({
 });
 
 
-// const verifyFBToken = async (req, res, next) => {
-
-//   const token = req.headers.authorization
-//   if (!token) {
-//     return res.status(401).send({ message: 'unauthorized access' })
-//   }
-//   try {
-//     const IdToken = token.split(' ')[1]
-//     const decoded = await admin.auth().verifyIdToken(IdToken);
-//     console.log('✅ Token decoded email:', decoded.email);
-//     console.log(decoded)
-//     req.decoded_email = decoded.email
-
-//     next();
-
-//   } catch (error) {
-//     return res.status(401).send({ message: 'unauthorized access' })
-//   }
-
-// }
 const verifyFBToken = async (req, res, next) => {
-  const token = req.headers.authorization;
 
-  console.log('Authorization Header:', token);
-
+  const token = req.headers.authorization
   if (!token) {
-    return res.status(401).send({
-      message: 'No authorization token found',
-    });
+    return res.status(401).send({ message: 'unauthorized access' })
   }
-
   try {
-    const IdToken = token.split(' ')[1];
-
-    console.log('Firebase ID Token:', IdToken);
-
+    const IdToken = token.split(' ')[1]
     const decoded = await admin.auth().verifyIdToken(IdToken);
-
-    console.log('Token decoded email:', decoded.email);
-
-    req.decoded_email = decoded.email;
+    console.log('✅ Token decoded email:', decoded.email);
+    console.log(decoded)
+    req.decoded_email = decoded.email
 
     next();
-  } catch (error) {
-    console.log('Token Verify Error:', error);
 
-    return res.status(401).send({
-      message: 'Invalid Firebase token',
-    });
+  } catch (error) {
+    return res.status(401).send({ message: 'unauthorized access' })
   }
-};
+
+}
+
 
 // MongoDB URI
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@my-first-cluster.ofk8daf.mongodb.net/?appName=my-First-Cluster`;
@@ -96,7 +66,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect();
+    await client.connect();
 
     const db = client.db('etuitiondb_db');
     const userCollection = db.collection('users');
@@ -555,8 +525,8 @@ async function run() {
 
 
     // ================= PING =================
-    // await client.db('admin').command({ ping: 1 });
-    // console.log('MongoDB ping successful 🚀');
+    await client.db('admin').command({ ping: 1 });
+    console.log('MongoDB ping successful 🚀');
 
   } finally {
     // Ensures that the client will close when you finish/error
